@@ -4,6 +4,8 @@ FROM fedora:26
 # bazel, android-sdk, android-ndk
 
 RUN dnf -y install \
+  java-1.8.0-openjdk-headless \
+  java-1.8.0-openjdk-devel \
 	git \
 	wget \
 	unzip \
@@ -11,9 +13,9 @@ RUN dnf -y install \
 	gcc \
 	expect
 
-RUN wget --quiet https://github.com/bazelbuild/bazel/releases/download/0.5.2/bazel-0.5.2-installer-linux-x86_64.sh \
-  && sh bazel-0.5.2-installer-linux-x86_64.sh \
-  && rm -f bazel-0.5.2-installer-linux-x86_64.sh
+RUN wget --quiet https://github.com/bazelbuild/bazel/releases/download/0.5.2/bazel-0.5.2-without-jdk-installer-linux-x86_64.sh \
+  && sh bazel-0.5.2-without-jdk-installer-linux-x86_64.sh \
+  && rm -f bazel-0.5.2-without-jdk-installer-linux-x86_64.sh
 
 # Extracts installation and prints version
 RUN bazel --help
@@ -27,10 +29,11 @@ RUN cd /home/adam/dev/tools \
   && rm -f android-ndk-r12b-linux-x86_64.zip
 
 COPY android-accept-licenses.sh /android-accept-licenses.sh
+COPY packages.txt /packages.txt
 
 RUN cd /home/adam/dev/tools \
   && wget --output-document=android-tools.zip --quiet https://dl.google.com/android/repository/tools_r25.2.3-linux.zip \
   && unzip -q android-tools.zip -d android-sdk \
   && rm -f android-tools.zip \
-  && /android-accept-licenses.sh "android-sdk/tools/bin/sdkmanager --package_file=android-sdk/packages.txt"
+  && /android-accept-licenses.sh "android-sdk/tools/bin/sdkmanager --package_file=/packages.txt"
 
