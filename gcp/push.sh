@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-BASE_IMAGE_VERSION=v4
+BASE_IMAGE_VERSION=v5
 
 lines=`gcloud container images list-tags gcr.io/$PROJECT/t1 --filter="$BASE_IMAGE_VERSION" | wc -l`
 if [ $lines -eq 0 ]
@@ -14,4 +14,7 @@ then
 fi
 
 
-gcloud container builds submit --tag gcr.io/$PROJECT/t2:$BASE_IMAGE_VERSION t2
+gcloud container builds submit \
+  --timeout=30m \
+  --tag gcr.io/$PROJECT/t2:$BASE_IMAGE_VERSION \
+  t2

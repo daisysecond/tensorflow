@@ -1,6 +1,4 @@
-FROM gcr.io/footprinter-2/t1:v4
-
-RUN dnf -y install python2 python2-devel
+FROM gcr.io/footprinter-2/t1:v5
 
 RUN git clone --depth 1 -b starthere https://github.com/daisysecond/tensorflow.git
 

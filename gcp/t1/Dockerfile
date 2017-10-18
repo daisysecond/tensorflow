@@ -6,6 +6,11 @@ FROM fedora:26
 RUN dnf -y install \
   java-1.8.0-openjdk-headless \
   java-1.8.0-openjdk-devel \
+  python2 \
+  python2-devel \
+  patch \
+  python2-numpy \
+  gcc-c++ \
 	git \
 	wget \
 	unzip \
