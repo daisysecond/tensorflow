@@ -16,12 +16,8 @@
 
 package org.tensorflow.demo;
 
-import android.graphics.Bitmap;
+import android.graphics.*;
 import android.graphics.Bitmap.Config;
-import android.graphics.Canvas;
-import android.graphics.Matrix;
-import android.graphics.Paint;
-import android.graphics.Typeface;
 
 import android.media.ImageReader.OnImageAvailableListener;
 import android.os.SystemClock;
@@ -58,14 +54,14 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
   // --input_node_names="Mul" \
   // --output_node_names="final_result" \
   // --input_binary=true
-  private static final int INPUT_SIZE = 224;
-  private static final int IMAGE_MEAN = 117;
-  private static final float IMAGE_STD = 1;
-  private static final String INPUT_NAME = "input";
-  private static final String OUTPUT_NAME = "output";
+  private static final int INPUT_SIZE = 299;
+  private static final int IMAGE_MEAN = 128;
+  private static final float IMAGE_STD = 128;
+  private static final String INPUT_NAME = "Mul";
+  private static final String OUTPUT_NAME = "final_result";
 
 
-  private static final String MODEL_FILE = "file:///android_asset/tensorflow_inception_graph.pb";
+  private static final String MODEL_FILE = "file:///android_asset/berry_graph.pb";
   private static final String LABEL_FILE =
       "file:///android_asset/imagenet_comp_graph_label_strings.txt";
 
@@ -145,7 +141,69 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
             renderDebug(canvas);
           }
         });
+
+    fgPaint.setColor(0xff0000ff);
+
+    fgPaint.setStyle(Paint.Style.STROKE);
+    fgPaint.setStrokeWidth(10); // set stroke width
+
+    addCallback(
+        new DrawCallback() {
+          @Override
+          public void drawCallback(final Canvas canvas) {
+            renderDots(canvas);
+          }
+        });
   }
+
+  Paint fgPaint = new Paint();
+
+
+  void renderDots(Canvas canvas) {
+    int cellWidth = canvas.getWidth() / 8;
+    int cellHeight = canvas.getHeight() / 8;
+
+    for (int y = 0; y < 8; y += 1) {
+      for (int x = 0; x < 8; x += 1) {
+        //canvas.drawCircle(cellWidth * x + cellWidth / 2, cellHeight * y + cellHeight / 2, 4, fgPaint);
+      }
+    }
+
+
+  if (croppedBitmap != null) {
+      canvas.drawBitmap(croppedBitmap, 0, 0, fgPaint);
+  }
+
+
+    if (results != null) {
+      int frameWidth = 640;
+      int frameHeight = 480;
+      final float multiplier =
+              Math.min(canvas.getWidth() / (float) frameHeight, canvas.getHeight() / (float) frameWidth);
+      Matrix frameToCanvasMatrix =
+              ImageUtils.getTransformationMatrix(
+                      frameWidth,
+                      frameHeight,
+                      (int) (multiplier * frameHeight),
+                      (int) (multiplier * frameWidth),
+                      sensorOrientation,
+                      false);
+
+      frameToCanvasMatrix.postTranslate(0f, canvas.getHeight() - (frameWidth * multiplier));
+      //float scaleX = canvas.getWidth() / 640f;
+      //float scaleY = canvas.getHeight() / 480f;
+      for (Classifier.Recognition r : results) {
+        //canvas.drawRect(0, 0/*l.left * scaleX, l.top * scaleY*/,200, 200, fgPaint);
+
+        RectF l = r.getLocation();
+        frameToCanvasMatrix.mapRect(l);
+//        canvas.drawRect(l.left * scaleX, 0/*l.left * scaleX, l.top * scaleY*/,200, 200, fgPaint);
+        canvas.drawRect(l, fgPaint);
+      }
+    }
+  }
+
+  List<Classifier.Recognition> results = null;
 
   protected void processImageRGBbytes(int[] rgbBytes ) {
     rgbFrameBitmap.setPixels(rgbBytes, 0, previewWidth, 0, 0, previewWidth, previewHeight);
@@ -161,7 +219,7 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
           @Override
           public void run() {
             final long startTime = SystemClock.uptimeMillis();
-            final List<Classifier.Recognition> results = classifier.recognizeImage(croppedBitmap);
+            results = classifier.recognizeImage(croppedBitmap);
             lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
             LOGGER.i("Detect: %s", results);
             cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);

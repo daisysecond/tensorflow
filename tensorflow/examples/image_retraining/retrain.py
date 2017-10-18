@@ -102,6 +102,7 @@ import random
 import re
 import sys
 import tarfile
+from math import floor
 
 import numpy as np
 from six.moves import urllib
@@ -306,7 +307,8 @@ def run_bottleneck_on_image(sess, image_data, image_data_tensor,
   # Then run it through the recognition network.
   bottleneck_values = sess.run(bottleneck_tensor,
                                {resized_input_tensor: resized_input_values})
-  bottleneck_values = np.squeeze(bottleneck_values)
+  # Reshape (8, 8, 2048) to (131072,)
+  bottleneck_values = bottleneck_values.flatten()
   return bottleneck_values
 
 
@@ -353,20 +355,21 @@ def ensure_dir_exists(dir_name):
 bottleneck_path_2_bottleneck_values = {}
 
 
-def create_bottleneck_file(bottleneck_path, image_lists, label_name, index,
-                           image_dir, category, sess, jpeg_data_tensor,
+def create_bottleneck_file(bottleneck_path, index,
+                           image_dir, sess, png_data_tensor,
                            decoded_image_tensor, resized_input_tensor,
                            bottleneck_tensor):
   """Create a single bottleneck file."""
   tf.logging.info('Creating bottleneck at ' + bottleneck_path)
-  image_path = get_image_path(image_lists, label_name, index,
-                              image_dir, category)
+  image_path = "%s/%s.png" % (image_dir, index)
+  #image_path = get_image_path(image_lists, label_name, index,
+  #                            image_dir, category)
   if not gfile.Exists(image_path):
     tf.logging.fatal('File does not exist %s', image_path)
   image_data = gfile.FastGFile(image_path, 'rb').read()
   try:
     bottleneck_values = run_bottleneck_on_image(
-        sess, image_data, jpeg_data_tensor, decoded_image_tensor,
+        sess, image_data, png_data_tensor, decoded_image_tensor,
         resized_input_tensor, bottleneck_tensor)
   except Exception as e:
     raise RuntimeError('Error during processing file %s (%s)' % (image_path,
@@ -376,8 +379,8 @@ def create_bottleneck_file(bottleneck_path, image_lists, label_name, index,
     bottleneck_file.write(bottleneck_string)
 
 
-def get_or_create_bottleneck(sess, image_lists, label_name, index, image_dir,
-                             category, bottleneck_dir, jpeg_data_tensor,
+def get_or_create_bottleneck(sess, index, image_dir,
+                             bottleneck_dir, png_data_tensor,
                              decoded_image_tensor, resized_input_tensor,
                              bottleneck_tensor, architecture):
   """Retrieves or calculates bottleneck values for an image.
@@ -405,22 +408,44 @@ def get_or_create_bottleneck(sess, image_lists, label_name, index, image_dir,
   Returns:
     Numpy array of values produced by the bottleneck layer for the image.
   """
-  label_lists = image_lists[label_name]
-  sub_dir = label_lists['dir']
-  sub_dir_path = os.path.join(bottleneck_dir, sub_dir)
-  ensure_dir_exists(sub_dir_path)
-  bottleneck_path = get_bottleneck_path(image_lists, label_name, index,
-                                        bottleneck_dir, category, architecture)
+  #tf.logging.info('Creating bottleneck at ' + bottleneck_path)
+  image_path = "%s/%s.png" % (image_dir, index)
+
+  #image_path = get_image_path(image_lists, label_name, index,
+  #                            image_dir, category)
+  if not gfile.Exists(image_path):
+    tf.logging.fatal('File does not exist %s', image_path)
+  image_data = gfile.FastGFile(image_path, 'rb').read()
+
+  # try:
+  #   bottleneck_values = run_bottleneck_on_image(
+  #     sess, image_data, png_data_tensor, decoded_image_tensor,
+  #     resized_input_tensor, bottleneck_tensor)
+  # except Exception as e:
+  #   raise RuntimeError('Error during processing file %s (%s)' % (image_path,
+  #                                                                str(e)))
+  # return bottleneck_values
+  
+  # label_lists = image_lists[label_name]
+  # sub_dir = label_lists['dir']
+  # sub_dir_path = os.path.join(bottleneck_dir, sub_dir)
+  # ensure_dir_exists(sub_dir_path)
+  bottleneck_path = "%s/%s.txt" % (bottleneck_dir, index)
+  #get_bottleneck_path(image_lists, label_name, index,
+  #                                      bottleneck_dir, category, architecture)
   if not os.path.exists(bottleneck_path):
-    create_bottleneck_file(bottleneck_path, image_lists, label_name, index,
-                           image_dir, category, sess, jpeg_data_tensor,
+    create_bottleneck_file(bottleneck_path, index,
+                           image_dir, sess, png_data_tensor,
                            decoded_image_tensor, resized_input_tensor,
                            bottleneck_tensor)
   with open(bottleneck_path, 'r') as bottleneck_file:
     bottleneck_string = bottleneck_file.read()
-  did_hit_error = False
+
+  bottleneck_values = np.array([float(x) for x in bottleneck_string.split(',')])
+  bottleneck_values = bottleneck_values.reshape((8, 8, 2048))
+
+  """did_hit_error = False
   try:
-    bottleneck_values = [float(x) for x in bottleneck_string.split(',')]
   except ValueError:
     tf.logging.warning('Invalid float found, recreating bottleneck')
     did_hit_error = True
@@ -434,10 +459,11 @@ def get_or_create_bottleneck(sess, image_lists, label_name, index, image_dir,
     # Allow exceptions to propagate here, since they shouldn't happen after a
     # fresh creation
     bottleneck_values = [float(x) for x in bottleneck_string.split(',')]
+  """
   return bottleneck_values
 
 
-def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
+def cache_bottlenecks(sess, total_samples, image_dir, bottleneck_dir,
                       jpeg_data_tensor, decoded_image_tensor,
                       resized_input_tensor, bottleneck_tensor, architecture):
   """Ensures all the training, testing, and validation bottlenecks are cached.
@@ -451,7 +477,7 @@ def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
 
   Args:
     sess: The current active TensorFlow Session.
-    image_lists: Dictionary of training images for each label.
+    total_samples: Total # of samples
     image_dir: Root folder string of the subfolders containing the training
     images.
     bottleneck_dir: Folder string holding cached files of bottleneck values.
@@ -466,25 +492,28 @@ def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
   """
   how_many_bottlenecks = 0
   ensure_dir_exists(bottleneck_dir)
-  for label_name, label_lists in image_lists.items():
+  for sample in range(total_samples):
+    get_or_create_bottleneck(
+      sess, sample, image_dir,
+      bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
+      resized_input_tensor, bottleneck_tensor, architecture)
+    """for label_name, label_lists in image_lists.items():
     for category in ['training', 'testing', 'validation']:
       category_list = label_lists[category]
       for index, unused_base_name in enumerate(category_list):
-        get_or_create_bottleneck(
-            sess, image_lists, label_name, index, image_dir, category,
-            bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
-            resized_input_tensor, bottleneck_tensor, architecture)
+     """
 
-        how_many_bottlenecks += 1
-        if how_many_bottlenecks % 100 == 0:
-          tf.logging.info(
-              str(how_many_bottlenecks) + ' bottleneck files created.')
+    how_many_bottlenecks += 1
+    if how_many_bottlenecks % 100 == 0:
+      tf.logging.info(
+          str(how_many_bottlenecks) + ' bottleneck files created.')
 
 
-def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
+def get_random_cached_bottlenecks(sess, total_samples, how_many, category,
                                   bottleneck_dir, image_dir, jpeg_data_tensor,
                                   decoded_image_tensor, resized_input_tensor,
                                   bottleneck_tensor, architecture):
+
   """Retrieves bottleneck values for cached images.
 
   If no distortions are being applied, this function can retrieve the cached
@@ -511,44 +540,49 @@ def get_random_cached_bottlenecks(sess, image_lists, how_many, category,
     List of bottleneck arrays, their corresponding ground truths, and the
     relevant filenames.
   """
-  class_count = len(image_lists.keys())
+
+  num_testing = floor(total_samples * FLAGS.testing_percentage * 0.01)
+  num_validation = floor(total_samples * FLAGS.validation_percentage * 0.01)
+
+  start = count = 0
+  if category == 'training':
+    start = 0
+    count = total_samples - num_testing - num_validation
+  elif category == 'testing':
+    start = total_samples - num_testing - num_validation
+    count = num_testing
+  elif category == 'validation':
+    start = total_samples - num_testing
+    count = num_validation
+
+  print (category, total_samples, start, count)
   bottlenecks = []
   ground_truths = []
   filenames = []
+
+  # Retrieve a random sample of bottlenecks.
   if how_many >= 0:
-    # Retrieve a random sample of bottlenecks.
-    for unused_i in range(how_many):
-      label_index = random.randrange(class_count)
-      label_name = list(image_lists.keys())[label_index]
-      image_index = random.randrange(MAX_NUM_IMAGES_PER_CLASS + 1)
-      image_name = get_image_path(image_lists, label_name, image_index,
-                                  image_dir, category)
-      bottleneck = get_or_create_bottleneck(
-          sess, image_lists, label_name, image_index, image_dir, category,
-          bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
-          resized_input_tensor, bottleneck_tensor, architecture)
-      ground_truth = np.zeros(class_count, dtype=np.float32)
-      ground_truth[label_index] = 1.0
-      bottlenecks.append(bottleneck)
-      ground_truths.append(ground_truth)
-      filenames.append(image_name)
+    sample_indexes = [random.randrange(start, start + count) for _ in range(how_many)]
   else:
-    # Retrieve all bottlenecks.
-    for label_index, label_name in enumerate(image_lists.keys()):
-      for image_index, image_name in enumerate(
-          image_lists[label_name][category]):
-        image_name = get_image_path(image_lists, label_name, image_index,
-                                    image_dir, category)
-        bottleneck = get_or_create_bottleneck(
-            sess, image_lists, label_name, image_index, image_dir, category,
-            bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
-            resized_input_tensor, bottleneck_tensor, architecture)
-        ground_truth = np.zeros(class_count, dtype=np.float32)
-        ground_truth[label_index] = 1.0
-        bottlenecks.append(bottleneck)
-        ground_truths.append(ground_truth)
-        filenames.append(image_name)
+    sample_indexes = range(total_samples)
+
+  for sample in sample_indexes:
+    image_name = "%s/%s.png" % (image_dir, sample)
+
+    bottleneck = get_or_create_bottleneck(
+        sess, sample, image_dir,
+        bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
+        resized_input_tensor, bottleneck_tensor, architecture)
+
+    with open("%s/%s.csv" % (image_dir, sample), 'r') as csv:
+      fs = [float(v) for v in csv.read().split(',')[:-1]]
+    ground_truth = np.array(fs).reshape((8,8,5))
+
+    bottlenecks.append(bottleneck)
+    ground_truths.append(ground_truth)
+    filenames.append(image_name)
   return bottlenecks, ground_truths, filenames
+
 
 
 def get_random_distorted_bottlenecks(
@@ -732,7 +766,7 @@ def variable_summaries(var):
     tf.summary.histogram('histogram', var)
 
 
-def add_final_training_ops(class_count, final_tensor_name, bottleneck_tensor,
+def add_final_training_ops(final_tensor_name, bottleneck_tensor,
                            bottleneck_tensor_size):
   """Adds a new softmax and fully-connected layer for training.
 
@@ -757,17 +791,22 @@ def add_final_training_ops(class_count, final_tensor_name, bottleneck_tensor,
   with tf.name_scope('input'):
     bottleneck_input = tf.placeholder_with_default(
         bottleneck_tensor,
-        shape=[None, bottleneck_tensor_size],
+        shape=[None, 8, 8, bottleneck_tensor_size],
         name='BottleneckInputPlaceholder')
 
+    #pool = slim.avg_pool(bottleneck_input, )
+    #pool = tf.nn.avg_pool(bottleneck_input, [1, 8, 8, 1], strides=[1, 1, 1, 1], padding='VALID')
+    #pool2 = tf.reshape(pool, tf.constant([-1, 2048]))
+
     ground_truth_input = tf.placeholder(tf.float32,
-                                        [None, class_count],
+                                        [None, 8, 8, 5],
                                         name='GroundTruthInput')
 
   # Organizing the following ops as `final_training_ops` so they're easier
   # to see in TensorBoard
   layer_name = 'final_training_ops'
   with tf.name_scope(layer_name):
+    """
     with tf.name_scope('weights'):
       initial_value = tf.truncated_normal(
           [bottleneck_tensor_size, class_count], stddev=0.001)
@@ -779,24 +818,35 @@ def add_final_training_ops(class_count, final_tensor_name, bottleneck_tensor,
       layer_biases = tf.Variable(tf.zeros([class_count]), name='final_biases')
       variable_summaries(layer_biases)
     with tf.name_scope('Wx_plus_b'):
-      logits = tf.matmul(bottleneck_input, layer_weights) + layer_biases
+      logits = tf.matmul(pool2, layer_weights) + layer_biases
       tf.summary.histogram('pre_activations', logits)
+    """
+    final_conv = tf.layers.conv2d(
+      bottleneck_input,
+      filters=5,  # 5 outputs
+      kernel_size=1,
+      strides=1,
+      #padding='saml',   # 1x1 conv so not useful
+    )
 
-  final_tensor = tf.nn.softmax(logits, name=final_tensor_name)
-  tf.summary.histogram('activations', final_tensor)
+    #in1 = tf.layers.dense(inputs=final_conv, units=10)
+    fc = tf.layers.dense(inputs=final_conv, units=5)
+
+  final_tensor = tf.identity(fc, name=final_tensor_name)
 
   with tf.name_scope('cross_entropy'):
-    cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
-        labels=ground_truth_input, logits=logits)
-    with tf.name_scope('total'):
-      cross_entropy_mean = tf.reduce_mean(cross_entropy)
-  tf.summary.scalar('cross_entropy', cross_entropy_mean)
+
+    cross_entropy = tf.losses.mean_squared_error(
+        labels=ground_truth_input, predictions=final_tensor)
+    #with tf.name_scope('total'):
+    #  cross_entropy_mean = tf.reduce_mean(cross_entropy)
+  tf.summary.scalar('cross_entropy', cross_entropy)
 
   with tf.name_scope('train'):
     optimizer = tf.train.GradientDescentOptimizer(FLAGS.learning_rate)
-    train_step = optimizer.minimize(cross_entropy_mean)
+    train_step = optimizer.minimize(cross_entropy)
 
-  return (train_step, cross_entropy_mean, bottleneck_input, ground_truth_input,
+  return (train_step, cross_entropy, bottleneck_input, ground_truth_input,
           final_tensor)
 
 
@@ -862,7 +912,7 @@ def create_model_info(architecture):
     # pylint: disable=line-too-long
     data_url = 'http://download.tensorflow.org/models/image/imagenet/inception-2015-12-05.tgz'
     # pylint: enable=line-too-long
-    bottleneck_tensor_name = 'pool_3/_reshape:0'
+    bottleneck_tensor_name = 'mixed_10/join:0'
     bottleneck_tensor_size = 2048
     input_width = 299
     input_height = 299
@@ -936,7 +986,7 @@ def create_model_info(architecture):
   }
 
 
-def add_jpeg_decoding(input_width, input_height, input_depth, input_mean,
+def add_png_decoding(input_width, input_height, input_depth, input_mean,
                       input_std):
   """Adds operations that perform JPEG decoding and resizing to the graph..
 
@@ -951,8 +1001,8 @@ def add_jpeg_decoding(input_width, input_height, input_depth, input_mean,
     Tensors for the node to feed JPEG data into, and the output of the
       preprocessing steps.
   """
-  jpeg_data = tf.placeholder(tf.string, name='DecodeJPGInput')
-  decoded_image = tf.image.decode_jpeg(jpeg_data, channels=input_depth)
+  jpeg_data = tf.placeholder(tf.string, name='DecodePNGInput')
+  decoded_image = tf.image.decode_png(jpeg_data, channels=input_depth)
   decoded_image_as_float = tf.cast(decoded_image, dtype=tf.float32)
   decoded_image_4d = tf.expand_dims(decoded_image_as_float, 0)
   resize_shape = tf.stack([input_height, input_width])
@@ -983,6 +1033,13 @@ def main(_):
   graph, bottleneck_tensor, resized_image_tensor = (
       create_model_graph(model_info))
 
+  total_samples = 0
+  while True:
+    if not os.path.exists("%s/%s.csv" % (FLAGS.image_dir, total_samples)):
+      break
+    total_samples += 1
+
+  """
   # Look at the folder structure, and create lists of all the images.
   image_lists = create_image_lists(FLAGS.image_dir, FLAGS.testing_percentage,
                                    FLAGS.validation_percentage)
@@ -995,6 +1052,7 @@ def main(_):
                      FLAGS.image_dir +
                      ' - multiple classes are needed for classification.')
     return -1
+  """
 
   # See if the command-line flags mean we're applying any distortions.
   do_distort_images = should_distort_images(
@@ -1003,7 +1061,7 @@ def main(_):
 
   with tf.Session(graph=graph) as sess:
     # Set up the image decoding sub-graph.
-    jpeg_data_tensor, decoded_image_tensor = add_jpeg_decoding(
+    png_data_tensor, decoded_image_tensor = add_png_decoding(
         model_info['input_width'], model_info['input_height'],
         model_info['input_depth'], model_info['input_mean'],
         model_info['input_std'])
@@ -1019,15 +1077,15 @@ def main(_):
     else:
       # We'll make sure we've calculated the 'bottleneck' image summaries and
       # cached them on disk.
-      cache_bottlenecks(sess, image_lists, FLAGS.image_dir,
-                        FLAGS.bottleneck_dir, jpeg_data_tensor,
+      cache_bottlenecks(sess, total_samples, FLAGS.image_dir,
+                        FLAGS.bottleneck_dir, png_data_tensor,
                         decoded_image_tensor, resized_image_tensor,
                         bottleneck_tensor, FLAGS.architecture)
 
     # Add the new layer that we'll be training.
     (train_step, cross_entropy, bottleneck_input, ground_truth_input,
      final_tensor) = add_final_training_ops(
-         len(image_lists.keys()), FLAGS.final_tensor_name, bottleneck_tensor,
+         FLAGS.final_tensor_name, bottleneck_tensor,
          model_info['bottleneck_tensor_size'])
 
     # Create the operations we need to evaluate the accuracy of our new layer.
@@ -1059,10 +1117,11 @@ def main(_):
       else:
         (train_bottlenecks,
          train_ground_truth, _) = get_random_cached_bottlenecks(
-             sess, image_lists, FLAGS.train_batch_size, 'training',
-             FLAGS.bottleneck_dir, FLAGS.image_dir, jpeg_data_tensor,
+             sess, total_samples, FLAGS.train_batch_size, 'training',
+             FLAGS.bottleneck_dir, FLAGS.image_dir, png_data_tensor,
              decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
              FLAGS.architecture)
+
       # Feed the bottlenecks and ground truth into the graph, and run a training
       # step. Capture training summaries for TensorBoard with the `merged` op.
       train_summary, _ = sess.run(
@@ -1084,8 +1143,8 @@ def main(_):
                         (datetime.now(), i, cross_entropy_value))
         validation_bottlenecks, validation_ground_truth, _ = (
             get_random_cached_bottlenecks(
-                sess, image_lists, FLAGS.validation_batch_size, 'validation',
-                FLAGS.bottleneck_dir, FLAGS.image_dir, jpeg_data_tensor,
+                sess, total_samples, FLAGS.validation_batch_size, 'validation',
+                FLAGS.bottleneck_dir, FLAGS.image_dir, png_data_tensor,
                 decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
                 FLAGS.architecture))
         # Run a validation step and capture training summaries for TensorBoard
@@ -1114,8 +1173,8 @@ def main(_):
     # some new images we haven't used before.
     test_bottlenecks, test_ground_truth, test_filenames = (
         get_random_cached_bottlenecks(
-            sess, image_lists, FLAGS.test_batch_size, 'testing',
-            FLAGS.bottleneck_dir, FLAGS.image_dir, jpeg_data_tensor,
+            sess, total_samples, FLAGS.test_batch_size, 'testing',
+            FLAGS.bottleneck_dir, FLAGS.image_dir, png_data_tensor,
             decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
             FLAGS.architecture))
     test_accuracy, predictions = sess.run(
@@ -1133,11 +1192,13 @@ def main(_):
                           (test_filename,
                            list(image_lists.keys())[predictions[i]]))
 
+    #print()
+    #print(graph.as_graph_def())
     # Write out the trained graph and labels with the weights stored as
     # constants.
     save_graph_to_file(sess, graph, FLAGS.output_graph)
-    with gfile.FastGFile(FLAGS.output_labels, 'w') as f:
-      f.write('\n'.join(image_lists.keys()) + '\n')
+    #with gfile.FastGFile(FLAGS.output_labels, 'w') as f:
+    #  f.write('\n'.join(image_lists.keys()) + '\n')
 
 
 if __name__ == '__main__':
@@ -1145,13 +1206,13 @@ if __name__ == '__main__':
   parser.add_argument(
       '--image_dir',
       type=str,
-      default='',
+      default='/home/adam/Desktop/b',
       help='Path to folders of labeled images.'
   )
   parser.add_argument(
       '--output_graph',
       type=str,
-      default='/tmp/output_graph.pb',
+      default='/home/adam/dev/berry/data/output_graph.pb',
       help='Where to save the trained graph.'
   )
   parser.add_argument(
@@ -1178,7 +1239,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--summaries_dir',
       type=str,
-      default='/tmp/retrain_logs',
+      default='/home/adam/dev/berry/data/summaries',
       help='Where to save summary logs for TensorBoard.'
   )
   parser.add_argument(
@@ -1190,7 +1251,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--learning_rate',
       type=float,
-      default=0.01,
+      default=0.001,
       help='How large a learning rate to use when training.'
   )
   parser.add_argument(
@@ -1252,7 +1313,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--model_dir',
       type=str,
-      default='/tmp/imagenet',
+      default='/home/adam/dev/berry/data/model',
       help="""\
       Path to classify_image_graph_def.pb,
       imagenet_synset_to_human_label_map.txt, and
@@ -1262,7 +1323,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--bottleneck_dir',
       type=str,
-      default='/tmp/bottleneck',
+      default='/home/adam/dev/berry/data/bottleneck',
       help='Path to cache bottleneck layer values as files.'
   )
   parser.add_argument(

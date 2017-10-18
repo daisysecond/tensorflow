@@ -17,6 +17,7 @@ package org.tensorflow.demo;
 
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
+import android.graphics.RectF;
 import android.os.Trace;
 import android.util.Log;
 import java.io.BufferedReader;
@@ -36,7 +37,7 @@ public class TensorFlowImageClassifier implements Classifier {
 
   // Only return this many results with at least this confidence.
   private static final int MAX_RESULTS = 3;
-  private static final float THRESHOLD = 0.1f;
+  private static final float THRESHOLD = 0.4f;
 
   // Config values.
   private String inputName;
@@ -104,7 +105,7 @@ public class TensorFlowImageClassifier implements Classifier {
 
     // The shape of the output is [N, NUM_CLASSES], where N is the batch size.
     final Operation operation = c.inferenceInterface.graphOperation(outputName);
-    final int numClasses = (int) operation.output(0).shape().size(1);
+    final int numClasses = (int) 5;//operation.output(0).shape().size(1);
     Log.i(TAG, "Read " + c.labels.size() + " labels, output layer size is " + numClasses);
 
     // Ideally, inputSize could have been retrieved from the shape of the input operation.  Alas,
@@ -118,7 +119,7 @@ public class TensorFlowImageClassifier implements Classifier {
     c.outputNames = new String[] {outputName};
     c.intValues = new int[inputSize * inputSize];
     c.floatValues = new float[inputSize * inputSize * 3];
-    c.outputs = new float[numClasses];
+    c.outputs = new float[8 * 8 * 5];
 
     return c;
   }
@@ -166,13 +167,32 @@ public class TensorFlowImageClassifier implements Classifier {
                 return Float.compare(rhs.getConfidence(), lhs.getConfidence());
               }
             });
-    for (int i = 0; i < outputs.length; ++i) {
-      if (outputs[i] > THRESHOLD) {
-        pq.add(
-            new Recognition(
-                "" + i, labels.size() > i ? labels.get(i) : "unknown", outputs[i], null));
+
+    float cx = 640f/8f;
+    float cy = 480f/8f;
+    for (int y = 0; y < 8; y += 1) {
+      for (int x = 0; x < 8; x += 1) {
+        int index = y * 8 * 5 + x * 5;
+        if (outputs[index] > THRESHOLD) {
+          float l = outputs[index + 1];
+          float r = outputs[index + 2];
+          float b = outputs[index + 3];
+          float t = outputs[index + 4];
+
+          // Android coords are top left
+          RectF rect = new RectF(x * cx - l, y*cy - b, (x + 1) * cx - r, (y+1) * cy - t);
+          pq.add(
+                  new Recognition(
+                          "" + index / 5, "-", outputs[index], rect));
+        }
       }
     }
+
+    //RectF rect = new RectF(0, 0, 640, 480);
+//    pq.add(
+//            new Recognition(
+//                    "0", "-", 1f, rect));
+
     final ArrayList<Recognition> recognitions = new ArrayList<Recognition>();
     int recognitionsSize = Math.min(pq.size(), MAX_RESULTS);
     for (int i = 0; i < recognitionsSize; ++i) {

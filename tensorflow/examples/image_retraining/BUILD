@@ -37,6 +37,18 @@ py_binary(
     ],
 )
 
+py_binary(
+    name = "inspect_vision",
+    srcs = [
+        "inspect_vision.py",
+    ],
+    srcs_version = "PY2AND3",
+    visibility = ["//tensorflow:__subpackages__"],
+    deps = [
+        "//tensorflow:tensorflow_py",
+    ],
+)
+
 py_test(
     name = "retrain_test",
     size = "small",

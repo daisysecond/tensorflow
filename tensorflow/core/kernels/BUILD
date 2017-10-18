@@ -4185,6 +4185,7 @@ filegroup(
         "identity_op.h",
         "immutable_constant_op.cc",
         "immutable_constant_op.h",
+        "listdiff_op.cc",
         "matmul_op.cc",
         "matmul_op.h",
         "no_op.cc",

@@ -44,8 +44,15 @@ from __future__ import print_function
 
 import argparse
 import sys
-
+from PIL import Image
+import numpy as np
 import tensorflow as tf
+
+import argparse
+from PIL import Image, ImageDraw
+import matplotlib.pyplot as plt
+import pylab
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -57,12 +64,12 @@ parser.add_argument(
     help='Display this many predictions.')
 parser.add_argument(
     '--graph',
-    required=True,
     type=str,
+    default='/tmp/output_graph.pb',
     help='Absolute path to graph file (.pb)')
 parser.add_argument(
     '--labels',
-    required=True,
+    required=False,
     type=str,
     help='Absolute path to labels file (.txt)')
 parser.add_argument(
@@ -73,18 +80,20 @@ parser.add_argument(
 parser.add_argument(
     '--input_layer',
     type=str,
+    #default='Mul:0',
     default='DecodeJpeg/contents:0',
+
     help='Name of the input operation')
+parser.add_argument(
+    '--preview',
+    action='store_true',
+)
 
 
 def load_image(filename):
   """Read in the image_data to be classified."""
   return tf.gfile.FastGFile(filename, 'rb').read()
 
-
-def load_labels(filename):
-  """Read in labels, one label per line."""
-  return [line.rstrip() for line in tf.gfile.GFile(filename)]
 
 
 def load_graph(filename):
@@ -95,7 +104,7 @@ def load_graph(filename):
     tf.import_graph_def(graph_def, name='')
 
 
-def run_graph(image_data, labels, input_layer_name, output_layer_name,
+def run_graph(image_data, input_layer_name, output_layer_name,
               num_top_predictions):
   with tf.Session() as sess:
     # Feed the image_data as input to the graph.
@@ -105,12 +114,19 @@ def run_graph(image_data, labels, input_layer_name, output_layer_name,
     softmax_tensor = sess.graph.get_tensor_by_name(output_layer_name)
     predictions, = sess.run(softmax_tensor, {input_layer_name: image_data})
 
-    # Sort to show labels in order of confidence
-    top_k = predictions.argsort()[-num_top_predictions:][::-1]
-    for node_id in top_k:
-      human_string = labels[node_id]
-      score = predictions[node_id]
-      print('%s (score = %.5f)' % (human_string, score))
+    # Flatten tensor and save to file
+    with open('prediction.csv', 'wb') as f:
+        for v in predictions.flatten():
+            f.write(str(v).encode('ascii'))
+            f.write(b',')
+
+    print("Wrote prediction.csv")
+    # # Sort to show labels in order of confidence
+    # top_k = predictions.argsort()[-num_top_predictions:][::-1]
+    # for node_id in top_k:
+    #   human_string = "A" #labels[node_id]
+    #   score = predictions[node_id]
+    #   print('%s (score = %.5f)' % (human_string, score))
 
     return 0
 
@@ -123,25 +139,90 @@ def main(argv):
   if not tf.gfile.Exists(FLAGS.image):
     tf.logging.fatal('image file does not exist %s', FLAGS.image)
 
-  if not tf.gfile.Exists(FLAGS.labels):
-    tf.logging.fatal('labels file does not exist %s', FLAGS.labels)
+  #if not tf.gfile.Exists(FLAGS.labels):
+  #  tf.logging.fatal('labels file does not exist %s', FLAGS.labels)
 
   if not tf.gfile.Exists(FLAGS.graph):
     tf.logging.fatal('graph file does not exist %s', FLAGS.graph)
 
   # load image
   image_data = load_image(FLAGS.image)
+  #im = Image.open(FLAGS.image)
+  #assert(im.size == (299, 299))
+  #im_data = np.asarray(im, dtype=np.int32)
 
+#  resize_shape = tf.stack([input_height, input_width])
+  #resize_shape_as_int = tf.cast(resize_shape, dtype=tf.int32)
+  #resized_image = tf.image.resize_bilinear(decoded_image_4d,
+  #                                         resize_shape_as_int)
+  #input_mean = 128
+  #input_std = 128
+  #offset_image = im_data - input_mean # tf.subtract(resized_image, input_mean)
+  
+  #mul_image = offset_image * (1.0 / input_std) # tf.multiply(offset_image, 1.0 / input_std)
   # load labels
-  labels = load_labels(FLAGS.labels)
+#  labels = load_labels(FLAGS.labels)
 
   # load graph, which is stored in the default session
   load_graph(FLAGS.graph)
 
-  run_graph(image_data, labels, FLAGS.input_layer, FLAGS.output_layer,
+  #run_graph(mul_image.reshape((1, 299, 299, 3)), FLAGS.input_layer, FLAGS.output_layer,
+  run_graph(image_data, FLAGS.input_layer, FLAGS.output_layer,
             FLAGS.num_top_predictions)
+
+  if FLAGS.preview:
+      img = Image.open(FLAGS.image)
+
+      #with open("%s/%s.csv" % (flags.directory, flags.sample), 'r') as csv:
+      #    fs = [float(v) for v in csv.read().split(',')[:-1]]
+      #fv = np.array(fs).reshape((8,8, 5))
+      #_render(img, fv, boxtruth, dottruth, rtruth)
+
+      with open('prediction.csv', 'r') as csv:
+          fs = [float(v) for v in csv.read().split(',')[:-1]]
+      fv = np.array(fs).reshape((8,8, 5))
+      _render(img, fv, boxprediction, dotprediction, rprediction)
+
+      plt.imshow(img)
+      pylab.show()
+
+
+
+
+# Size of a cell in pixels
+C = 299/8.0
+
+# Radius of the dot
+rtruth = 5
+dottruth = (100, 100, 255, 255)
+boxtruth = (0, 0, 255, 255)
+
+rprediction = 2
+boxprediction = (0, 200, 255, 255)
+dotprediction = (0, 150, 255, 255)
+
+def _render(img, fv, boxc, dotc, dr, has_cutoff=0.5):
+    draw = ImageDraw.Draw(img)
+    for y in range(8):
+        for x in range(8):
+            has = fv[y,x,0] > has_cutoff
+            if has:
+                cx = x * C + C / 2
+                cy = y * C + C / 2
+                draw.ellipse((cx - dr, cy - dr, cx + dr, cy + dr), fill=dotc)
+
+                l, r, b, t = fv[y, x, 1:]
+
+                draw.line((x * C - l, y * C - b, (x + 1) * C - r, y * C - b), fill=boxc)
+                draw.line((x * C - l, (y+1) * C - t, (x + 1) * C - r, (y+1) * C - t), fill=boxc)
+
+                draw.line((x * C - l, y * C - b, x * C - l, (y+1) * C - t), fill=boxc)
+                draw.line(((x + 1) * C - r, y * C - b, (x + 1) * C - r, (y+1) * C - t), fill=boxc)
+    del draw
+
+
 
 
 if __name__ == '__main__':
-  FLAGS, unparsed = parser.parse_known_args()
-  tf.app.run(main=main, argv=sys.argv[:1]+unparsed)
+    FLAGS, unparsed = parser.parse_known_args()
+    tf.app.run(main=main, argv=sys.argv[:1]+unparsed)

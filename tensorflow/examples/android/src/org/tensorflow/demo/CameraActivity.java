@@ -22,6 +22,9 @@ import android.app.Fragment;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.hardware.Camera;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
@@ -40,6 +43,9 @@ import android.util.Size;
 import android.view.KeyEvent;
 import android.view.WindowManager;
 import android.widget.Toast;
+
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 
 import org.tensorflow.demo.env.ImageUtils;
@@ -48,8 +54,7 @@ import org.tensorflow.demo.env.Logger;
 // Explicit import needed for internal Google builds.
 import org.tensorflow.demo.R;
 
-public abstract class CameraActivity extends Activity implements OnImageAvailableListener, Camera.
-        PreviewCallback {
+public abstract class CameraActivity extends Activity implements OnImageAvailableListener {
   private static final Logger LOGGER = new Logger();
 
   private static final int PERMISSIONS_REQUEST = 1;
@@ -94,35 +99,36 @@ public abstract class CameraActivity extends Activity implements OnImageAvailabl
   /**
    * Callback for android.hardware.Camera API
    */
-  @Override
-  public void onPreviewFrame(final byte[] bytes, final Camera camera) {
-    if (computing) {
-      return;
-    }
-    computing = true;
-    yuvBytes[0] = bytes;
-    try {
-      // Initialize the storage bitmaps once when the resolution is known.
-      if (rgbBytes == null) {
-        Camera.Size previewSize = camera.getParameters().getPreviewSize();
-        previewHeight = previewSize.height;
-        previewWidth = previewSize.width;
-        rgbBytes = new int[previewWidth * previewHeight];
-        onPreviewSizeChosen(new Size(previewSize.width, previewSize.height), 90);
-      }
-      ImageUtils.convertYUV420SPToARGB8888(bytes, rgbBytes, previewWidth, previewHeight, false);
-    } catch (final Exception e) {
-      LOGGER.e(e, "Exception!");
-      return;
-    }
-    postInferenceCallback = new Runnable() {
-      @Override
-      public void run() {
-        camera.addCallbackBuffer(bytes);
-      }
-    };
-    processImageRGBbytes(rgbBytes);
-  }
+//  @Override
+//  public void onPreviewFrame(final byte[] bytes, final Camera camera) {
+//    if (computing) {
+//      return;
+//    }
+//    computing = true;
+//    yuvBytes[0] = bytes;
+//    try {
+//      // Initialize the storage bitmaps once when the resolution is known.
+//      if (rgbBytes == null) {
+//        Camera.Size previewSize = camera.getParameters().getPreviewSize();
+//        previewHeight = previewSize.height;
+//        previewWidth = previewSize.width;
+//        rgbBytes = new int[previewWidth * previewHeight];
+//        onPreviewSizeChosen(new Size(previewSize.width, previewSize.height), 90);
+//      }
+//      ImageUtils.convertYUV420SPToARGB8888(bytes, rgbBytes, previewWidth, previewHeight, false);
+//    } catch (final Exception e) {
+//      LOGGER.e(e, "Exception!");
+//      return;
+//    }
+//    postInferenceCallback = new Runnable() {
+//      @Override
+//      public void run() {
+//        camera.addCallbackBuffer(bytes);
+//      }
+//    };
+//    processImageRGBbytes(rgbBytes);
+//  }
+
 
   /**
    * Callback for Camera2 API
@@ -153,16 +159,16 @@ public abstract class CameraActivity extends Activity implements OnImageAvailabl
       yRowStride = planes[0].getRowStride();
       final int uvRowStride = planes[1].getRowStride();
       final int uvPixelStride = planes[1].getPixelStride();
-      ImageUtils.convertYUV420ToARGB8888(
-          yuvBytes[0],
-          yuvBytes[1],
-          yuvBytes[2],
-          previewWidth,
-          previewHeight,
-          yRowStride,
-          uvRowStride,
-          uvPixelStride,
-          rgbBytes);
+//      ImageUtils.convertYUV420ToARGB8888(
+//          yuvBytes[0],
+//          yuvBytes[1],
+//          yuvBytes[2],
+//          previewWidth,
+//          previewHeight,
+//          yRowStride,
+//          uvRowStride,
+//          uvPixelStride,
+//          rgbBytes);
       image.close();
 
     } catch (final Exception e) {
@@ -173,6 +179,25 @@ public abstract class CameraActivity extends Activity implements OnImageAvailabl
       Trace.endSection();
       return;
     }
+
+    InputStream istr;
+    Bitmap bitmap = null;
+    try {
+      BitmapFactory.Options op = new BitmapFactory.Options();
+      op.inPreferredConfig = Bitmap.Config.ARGB_8888;
+      istr = getAssets().open("two.png");
+      bitmap  = BitmapFactory.decodeStream(istr, null, op);
+
+//      bitmap = BitmapFactory.decodeStream(istr);
+//      Drawable drawable= getResources().getDrawable(R.drawable.two);
+//      Bitmap bitmap = ((BitmapDrawable)drawable).getBitmap();
+      bitmap.getPixels(rgbBytes, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
+
+    } catch (final IOException e) {
+      LOGGER.e(e, "Exception!");
+
+    }
+
     processImageRGBbytes(rgbBytes);
     Trace.endSection();
   }
@@ -313,7 +338,7 @@ public abstract class CameraActivity extends Activity implements OnImageAvailabl
     String cameraId = chooseCamera();
 
     Fragment fragment;
-    if (useCamera2API) {
+//    if (useCamera2API) {
       CameraConnectionFragment camera2Fragment =
           CameraConnectionFragment.newInstance(
               new CameraConnectionFragment.ConnectionCallback() {
@@ -330,9 +355,9 @@ public abstract class CameraActivity extends Activity implements OnImageAvailabl
 
       camera2Fragment.setCamera(cameraId);
       fragment = camera2Fragment;
-    } else {
-      fragment = new LegacyCameraConnectionFragment(this, getLayoutId());
-    }
+//    } else {
+//      fragment = new LegacyCameraConnectionFragment(this, getLayoutId());
+//    }
 
     getFragmentManager()
         .beginTransaction()
