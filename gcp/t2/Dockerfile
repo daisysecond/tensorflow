@@ -1,4 +1,4 @@
-FROM gcr.io/footprinter-2/t1:v1
+FROM gcr.io/footprinter-2/t1:v2
 
 RUN git clone --depth 1 -b starthere https://github.com/daisysecond/tensorflow.git
 RUN cd tensorflow && bazel build berry/inspect_vision

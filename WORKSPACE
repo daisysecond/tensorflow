@@ -17,15 +17,15 @@ closure_repositories()
 load("//tensorflow:workspace.bzl", "tf_workspace")
 
 # Uncomment and update the paths in these entries to build the Android demo.
-android_sdk_repository(
-    name = "androidsdk",
-    api_level = 23,
+#android_sdk_repository(
+#    name = "androidsdk",
+#    api_level = 23,
     # Ensure that you have the build_tools_version below installed in the
     # SDK manager as it updates periodically.
-    build_tools_version = "25.0.2",
+#    build_tools_version = "25.0.2",
     # Replace with path to Android SDK on your system
-    path = "/home/adam/dev/tools/android",
-)
+#    path = "/home/adam/dev/tools/android",
+#)
 
 # Android NDK r12b is recommended (higher may cause issues with Bazel)
 android_ndk_repository(
