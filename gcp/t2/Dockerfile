@@ -1,5 +1,7 @@
 FROM gcr.io/footprinter-2/t1:v4
 
+RUN dnf -y install python2 python2-devel
+
 RUN git clone --depth 1 -b starthere https://github.com/daisysecond/tensorflow.git
 
 ENV PYTHON_BIN_PATH /usr/bin/python
@@ -13,6 +15,6 @@ ENV TF_NEED_VERBS 0
 ENV TF_NEED_MPI 0
 
 RUN cd tensorflow \
-  && ./configure
+  && ./configure \
   && bazel build berry/inspect_vision
 

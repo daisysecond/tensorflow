@@ -359,7 +359,6 @@ def tf_workspace(path_prefix="", tf_repo_name=""):
   patched_http_archive(
       name = "protobuf_archive",
       urls = [
-          "https://github.com/google/protobuf/archive/0b059a3d8a8f8aa40dde7bea55edca4ec5dfea66.tar.gz",
           "http://mirror.bazel.build/github.com/google/protobuf/archive/0b059a3d8a8f8aa40dde7bea55edca4ec5dfea66.tar.gz",
       ],
       sha256 = "6d43b9d223ce09e5d4ce8b0060cb8a7513577a35a64c7e3dad10f0703bf3ad93",
@@ -382,7 +381,6 @@ def tf_workspace(path_prefix="", tf_repo_name=""):
   native.http_archive(
       name = "com_google_protobuf",
       urls = [
-          "https://github.com/google/protobuf/archive/0b059a3d8a8f8aa40dde7bea55edca4ec5dfea66.tar.gz",
           "http://mirror.bazel.build/github.com/google/protobuf/archive/0b059a3d8a8f8aa40dde7bea55edca4ec5dfea66.tar.gz",
       ],
       sha256 = "6d43b9d223ce09e5d4ce8b0060cb8a7513577a35a64c7e3dad10f0703bf3ad93",
@@ -392,7 +390,6 @@ def tf_workspace(path_prefix="", tf_repo_name=""):
   native.http_archive(
       name = "com_google_protobuf_cc",
       urls = [
-          "https://github.com/google/protobuf/archive/0b059a3d8a8f8aa40dde7bea55edca4ec5dfea66.tar.gz",
           "http://mirror.bazel.build/github.com/google/protobuf/archive/0b059a3d8a8f8aa40dde7bea55edca4ec5dfea66.tar.gz",
       ],
       sha256 = "6d43b9d223ce09e5d4ce8b0060cb8a7513577a35a64c7e3dad10f0703bf3ad93",
