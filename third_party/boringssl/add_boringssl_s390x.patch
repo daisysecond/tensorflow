@@ -68,7 +68,7 @@ index 6b645e61..c90b7beb 100644
 +
 +        # This list of warnings should match those in the top-level CMakeLists.txt.
 +        "-Wall",
-+        "-Werror",
++
 +        "-Wformat=2",
 +        "-Wsign-compare",
 +        "-Wmissing-field-initializers",
