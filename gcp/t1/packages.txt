@@ -1,0 +1,4 @@
+tools
+platform-tools
+build-tools;25.0.2
+platforms;android-23
