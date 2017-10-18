@@ -15,6 +15,6 @@ fi
 
 
 gcloud container builds submit \
-  --timeout=30m \
+  --timeout=1h30m \
   --tag gcr.io/$PROJECT/t2:$BASE_IMAGE_VERSION \
   t2
