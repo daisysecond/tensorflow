@@ -42,3 +42,20 @@ RUN cd /home/adam/dev/tools \
   && rm -f android-tools.zip \
   && /android-accept-licenses.sh "android-sdk/tools/bin/sdkmanager --package_file=/packages.txt"
 
+# Checkout the base branch of tensorflow and build it
+
+RUN git clone --depth 1 -b base https://github.com/daisysecond/tensorflow.git
+
+ENV PYTHON_BIN_PATH /usr/bin/python
+ENV PYTHON_LIB_PATH /usr/lib/python2.7/site-packages
+ENV TF_NEED_JEMALLOC 1
+ENV TF_NEED_GCP 1
+ENV TF_NEED_HDFS 0
+ENV TF_ENABLE_XLA 0
+ENV TF_NEED_GDR 0
+ENV TF_NEED_VERBS 0
+ENV TF_NEED_MPI 0
+
+RUN cd tensorflow \
+  && ./configure \
+  && bazel build berry/inspect_vision
