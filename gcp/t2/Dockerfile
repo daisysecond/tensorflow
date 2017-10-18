@@ -1,4 +1,4 @@
-FROM gcr.io/footprinter-2/t1:v5
+FROM gcr.io/footprinter-2/t1:v6
 
 # Checkout the specific branch and build.
 #
