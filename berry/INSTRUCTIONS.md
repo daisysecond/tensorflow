@@ -23,3 +23,9 @@ bazel run tensorflow/examples/image_retraining:retrain -- \
 
 # Build android example
 
+
+# Unity
+
+https://forum.unity.com/threads/unity-on-linux-release-notes-and-known-issues.350256/
+
+
