@@ -1,11 +1,6 @@
 # Bazel
 
-Use bazel 0.5.2
-(0.5.3 is broken)
-
-Download installer from github releases
-
-https://github.com/bazelbuild/bazel/releases/tag/0.5.2
+Use bazel 0.11.1 copr
 
 # Ensure this repo was cloned using recursive
 
